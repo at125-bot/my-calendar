@@ -32,18 +32,18 @@
         /* タップした日の「青枠」ルール */
         .grid div.selected { outline: 2px solid #228be6; z-index: 10; }
 
-        /* 【修正】背景色をもう一段階だけ「薄い色」に微調整 */
+        /* 背景色 5種類 */
         .default { background-color: #ffffff !important; }
-        .blue    { background-color: #c6ffff !important; } /* より淡い水色 */
-        .orange  { background-color: #ffe0c1 !important; } /* より淡いオレンジ */
-        .yellow  { background-color: #ffffbc !important; } /* より淡い黄色 */
-        .pink    { background-color: #ffe0ff !important; } /* より淡いピンク */
-        .gray    { background-color: #dfdfdf !important; } /* より淡い灰色 */
+        .blue    { background-color: #e6f4ff !important; } 
+        .orange  { background-color: #fff0e6 !important; } 
+        .yellow  { background-color: #fffbe6 !important; } 
+        .pink    { background-color: #fff0f6 !important; } 
+        .gray    { background-color: #f5f5f5 !important; } 
 
         /* アイコンとテキスト */
         .icon-space { display: block; font-size: 0.9rem; margin-top: 2px; }
 
-        /* 【新機能】カレンダーの下の凡例エリア */
+        /* カレンダーの下の凡例エリア */
         .legend-area {
             margin-top: 15px;
             background: #fff;
@@ -62,7 +62,7 @@
         }
         .legend-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr); /* 2列で綺麗に並べる */
+            grid-template-columns: repeat(2, 1fr); 
             gap: 8px 12px;
         }
         .legend-item {
@@ -78,6 +78,12 @@
             border-radius: 50%;
             border: 1px solid #dee2e6;
             flex-shrink: 0;
+        }
+        /* カウント数字用のスタイル */
+        .count-num {
+            font-weight: bold;
+            color: #228be6;
+            margin-left: 4px;
         }
         
         /* ポップアップ（長押し設定画面） */
@@ -112,11 +118,11 @@
     <div class="legend-area">
         <div class="legend-title">【背景色】</div>
         <div class="legend-grid">
-            <div class="legend-item"><div class="legend-dot blue"></div><span>① 🛀</span></div>
-            <div class="legend-item"><div class="legend-dot orange"></div><span>② 🚿all</span></div>
-            <div class="legend-item"><div class="legend-dot yellow"></div><span>③ 🚿half</span></div>
-            <div class="legend-item"><div class="legend-dot pink"></div><span>④ sheet</span></div>
-            <div class="legend-item"><div class="legend-dot gray"></div><span>⑤ none</span></div>
+            <div class="legend-item"><div class="legend-dot blue"></div><span>① 🛀<span id="count-blue" class="count-num"></span></span></div>
+            <div class="legend-item"><div class="legend-dot orange"></div><span>② 🚿all<span id="count-orange" class="count-num"></span></span></div>
+            <div class="legend-item"><div class="legend-dot yellow"></div><span>③ 🚿half<span id="count-yellow" class="count-num"></span></span></div>
+            <div class="legend-item"><div class="legend-dot pink"></div><span>④ sheet<span id="count-pink" class="count-num"></span></span></div>
+            <div class="legend-item"><div class="legend-dot gray"></div><span>⑤ none<span id="count-gray" class="count-num"></span></span></div>
         </div>
     </div>
 
@@ -165,6 +171,9 @@
 
         daysContainer.innerHTML = '';
 
+        // 今月の各色のカウント用変数をリセット
+        let counts = { blue: 0, orange: 0, yellow: 0, pink: 0, gray: 0 };
+
         // 空白埋め
         for (let i = 0; i < firstDay; i++) {
             const empty = document.createElement('div');
@@ -193,9 +202,16 @@
             iconSpan.classList.add('icon-space');
             dayDiv.appendChild(iconSpan);
 
-            // 保存データの適用
+            // 保存データの適用とカウント
             if (calendarData[dateStr]) {
-                if (calendarData[dateStr].color) dayDiv.classList.add(calendarData[dateStr].color);
+                const savedColor = calendarData[dateStr].color;
+                if (savedColor && savedColor !== 'default') {
+                    dayDiv.classList.add(savedColor);
+                    // 表示されている月の日付の場合のみカウントに加算
+                    if (counts[savedColor] !== undefined) {
+                        counts[savedColor]++;
+                    }
+                }
                 if (calendarData[dateStr].emoji && calendarData[dateStr].emoji !== 'none') {
                     iconSpan.textContent = calendarData[dateStr].emoji;
                 }
@@ -228,6 +244,15 @@
 
             daysContainer.appendChild(dayDiv);
         }
+
+        // 【追加】凡例の横にカウント数を反映させる処理
+        Object.keys(counts).forEach(color => {
+            const countEl = document.getElementById(`count-${color}`);
+            if (countEl) {
+                // 1回以上使われていれば「（○日）」と表示、0回なら空っぽにする
+                countEl.textContent = counts[color] > 0 ? ` （${counts[color]}日）` : '';
+            }
+        });
     }
 
     // 設定画面の選択中スタイルを更新する関数
