@@ -25,9 +25,10 @@
         .grid div { background: #fff; text-align: center; padding: 8px 2px; min-height: 60px; font-size: 0.9rem; position: relative; }
         .weekdays div { background: #f8f9fa; font-weight: bold; min-height: auto; padding: 4px; color: #495057; }
         
-        /* 曜日ごとの文字色ルール */
+        /* 曜日・祝日の文字色ルール */
         .grid div.sun-color { color: #fa5252; } 
         .grid div.sat-color { color: #228be6; } 
+        .grid div.holiday-color { color: #fa5252; } /* 祝日も日曜日と同じ赤色に */
 
         /* タップした日の「青枠」ルール */
         .grid div.selected { outline: 2px solid #228be6; z-index: 10; }
@@ -156,10 +157,29 @@
     let tmpColor = "default";
     let tmpEmoji = "none";
     let calendarData = JSON.parse(localStorage.getItem('simple_cal_data')) || {};
+    let holidaysData = {}; // 祝日データを格納するオブジェクト
 
     const monthYearEl = document.getElementById('monthYear');
     const daysContainer = document.getElementById('daysContainer');
     const modal = document.getElementById('modal');
+
+    // 【追加】日本の祝日データをネットから自動取得する関数
+    async function fetchHolidays() {
+        try {
+            const response = await fetch('https://api.suyasuya.dev/holidays');
+            if (response.ok) {
+                const data = await response.json();
+                // 取得したデータを使いやすいように { "2026-01-01": "元日" } の形に変換
+                data.forEach(h => {
+                    holidaysData[h.date] = h.name;
+                });
+                // 祝日データが読み込めたらカレンダーを再描画
+                renderCalendar(currentDate);
+            }
+        } catch (e) {
+            console.error("祝日データの取得に失敗しました", e);
+        }
+    }
 
     function renderCalendar(date) {
         const year = date.getFullYear();
@@ -191,6 +211,11 @@
             const currentWeekDay = new Date(year, month, day).getDay();
             if (currentWeekDay === 0) dayDiv.classList.add('sun-color');
             if (currentWeekDay === 6) dayDiv.classList.add('sat-color');
+
+            // 【追加】もし祝日リストにこの日付があれば、祝日用の赤色クラスを付与
+            if (holidaysData[dateStr]) {
+                dayDiv.classList.add('holiday-color');
+            }
 
             // 日付の数字
             const numSpan = document.createElement('span');
@@ -245,11 +270,10 @@
             daysContainer.appendChild(dayDiv);
         }
 
-        // 【追加】凡例の横にカウント数を反映させる処理
+        // 凡例の横にカウント数を反映させる処理
         Object.keys(counts).forEach(color => {
             const countEl = document.getElementById(`count-${color}`);
             if (countEl) {
-                // 1回以上使われていれば「（○日）」と表示、0回なら空っぽにする
                 countEl.textContent = counts[color] > 0 ? ` （${counts[color]}日）` : '';
             }
         });
@@ -309,7 +333,8 @@
         renderCalendar(currentDate);
     });
 
-    // 初期起動
+    // 初期起動時に祝日を取得し、カレンダーを描画
+    fetchHolidays();
     renderCalendar(currentDate);
 </script>
 </body>
