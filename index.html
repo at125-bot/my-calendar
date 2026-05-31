@@ -28,12 +28,12 @@
         /* 曜日・祝日の文字色ルール */
         .grid div.sun-color { color: #fa5252; } 
         .grid div.sat-color { color: #228be6; } 
-        .grid div.holiday-color { color: #fa5252; } /* 祝日を赤色にする */
+        .grid div.holiday-color { color: #fa5252; } 
 
         /* タップした日の「青枠」ルール */
         .grid div.selected { outline: 2px solid #228be6; z-index: 10; }
 
-        /* お気に入りの微調整された背景色5種類 */
+        /* 背景色 5種類 */
         .default { background-color: #ffffff !important; }
         .blue    { background-color: #bcffff !important; } 
         .orange  { background-color: #ffe2c6 !important; } 
@@ -80,11 +80,18 @@
             border: 1px solid #dee2e6;
             flex-shrink: 0;
         }
-        /* カウント数字用のスタイル */
         .count-num {
             font-weight: bold;
             color: #228be6;
             margin-left: 4px;
+        }
+
+        /* 【追加】スコア用の表示スタイル */
+        .score-display {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #2b8a3e; /* 安心感のある深めのグリーン */
+            padding: 2px 4px;
         }
         
         /* ポップアップ（長押し設定画面） */
@@ -92,7 +99,6 @@
         .modal-content { background:#fff; padding:20px; border-radius:8px; width:90%; max-width:320px; text-align:center; }
         .modal-section { margin-bottom: 15px; font-weight: bold; font-size: 0.9rem; }
         
-        /* 設定画面内の選択中（active）のデザイン */
         .color-btn { width: 34px; height: 34px; border-radius: 50%; display: inline-block; margin: 4px; border: 1px solid #ccc; cursor: pointer; vertical-align: middle; }
         .color-btn.active { outline: 3px solid #333; outline-offset: 1px; }
         
@@ -124,6 +130,11 @@
             <div class="legend-item"><div class="legend-dot yellow"></div><span>③ 🚿half<span id="count-yellow" class="count-num"></span></span></div>
             <div class="legend-item"><div class="legend-dot pink"></div><span>④ sheet<span id="count-pink" class="count-num"></span></span></div>
             <div class="legend-item"><div class="legend-dot gray"></div><span>⑤ none<span id="count-gray" class="count-num"></span></span></div>
+        </div>
+        
+        <div class="legend-title" style="margin-top: 8px; border-top: 1px dashed #dee2e6; padding-top: 10px;">【スコア】</div>
+        <div class="score-display">
+            合計：<span id="total-score">0</span> 点
         </div>
     </div>
 
@@ -164,7 +175,6 @@
 
     // 【永久自動】指定された年・月・日の祝日を判定する計算プログラム
     function isJapanHoliday(year, month, day, dayOfWeek) {
-        // 固定の祝日
         if (month === 0 && day === 1) return true;  // 元日
         if (month === 1 && day === 11) return true; // 建国記念の日
         if (month === 1 && day === 23) return true; // 天皇誕生日
@@ -176,7 +186,6 @@
         if (month === 10 && day === 3) return true; // 文化の日
         if (month === 10 && day === 23) return true;// 勤労感謝の日
 
-        // ハッピーマンデー（第○月曜日）の判定
         if (dayOfWeek === 1) { 
             if (month === 0 && day >= 8 && day <= 14) return true;  // 成人の日 (第2月曜)
             if (month === 6 && day >= 15 && day <= 21) return true; // 海の日 (第3月曜)
@@ -184,7 +193,6 @@
             if (month === 9 && day >= 8 && day <= 14) return true;  // スポーツの日 (第2月曜)
         }
 
-        // 春分の日・秋分の日の自動計算式 (2099年まで正確に計算可能)
         if (month === 2) {
             const springEquinox = Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
             if (day === springEquinox) return true;
@@ -201,7 +209,6 @@
     function getMonthHolidays(year, month, lastDay) {
         let holidaySet = new Set();
         
-        // 1回目のパス：通常の祝日を判定
         for (let d = 1; d <= lastDay; d++) {
             const dt = new Date(year, month, d);
             if (isJapanHoliday(year, month, d, dt.getDay())) {
@@ -209,12 +216,10 @@
             }
         }
 
-        // 2回目のパス：振替休日・国民の休日の判定
         for (let d = 1; d <= lastDay; d++) {
             const dt = new Date(year, month, d);
             const w = dt.getDay();
 
-            // 振替休日のルール：祝日が日曜日の場合、その後の最初の平日が休み
             if (holidaySet.has(d) && w === 0) {
                 let nextDay = d + 1;
                 while (nextDay <= lastDay) {
@@ -227,7 +232,6 @@
                 }
             }
 
-            // 国民の休日のルール：前日と翌日の両方が祝日である平日は休み（オセロ現象）
             if (d > 1 && d < lastDay && !holidaySet.has(d)) {
                 if (holidaySet.has(d - 1) && holidaySet.has(d + 1)) {
                     holidaySet.add(d);
@@ -245,7 +249,6 @@
         const firstDay = new Date(year, month, 1).getDay();
         const lastDay = new Date(year, month + 1, 0).getDate();
 
-        // 当月のすべての祝日（振替休日含む）の日付を計算
         const currentMonthHolidays = getMonthHolidays(year, month, lastDay);
 
         daysContainer.innerHTML = '';
@@ -264,12 +267,10 @@
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             dayDiv.dataset.date = dateStr;
 
-            // 土日の文字色判定
             const currentWeekDay = new Date(year, month, day).getDay();
             if (currentWeekDay === 0) dayDiv.classList.add('sun-color');
             if (currentWeekDay === 6) dayDiv.classList.add('sat-color');
 
-            // 【判定】計算された祝日リストに含まれていれば、赤色クラスを付与
             if (currentMonthHolidays.has(day)) {
                 dayDiv.classList.add('holiday-color');
             }
@@ -298,7 +299,6 @@
                 }
             }
 
-            // タップした日の青枠を適用
             if (dateStr === selectedDateStr) dayDiv.classList.add('selected');
 
             // タップイベント
@@ -333,6 +333,10 @@
                 countEl.textContent = counts[color] > 0 ? ` （${counts[color]}日）` : '';
             }
         });
+
+        // 【追加】スコアの合計点を計算して画面に表示する処理
+        const totalScore = (counts.blue * 4) + (counts.orange * 3) + (counts.yellow * 2) + (counts.pink * 1) + (counts.gray * 0);
+        document.getElementById('total-score').textContent = totalScore;
     }
 
     // 設定画面の選択中スタイルを更新する関数
