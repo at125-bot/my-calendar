@@ -28,12 +28,12 @@
         /* 曜日・祝日の文字色ルール */
         .grid div.sun-color { color: #fa5252; } 
         .grid div.sat-color { color: #228be6; } 
-        .grid div.holiday-color { color: #fa5252; } /* 祝日も日曜日と同じ赤色に */
+        .grid div.holiday-color { color: #fa5252; } /* 祝日を赤色にする */
 
         /* タップした日の「青枠」ルール */
         .grid div.selected { outline: 2px solid #228be6; z-index: 10; }
 
-        /* 背景色 5種類 */
+        /* お気に入りの微調整された背景色5種類 */
         .default { background-color: #ffffff !important; }
         .blue    { background-color: #bcffff !important; } 
         .orange  { background-color: #ffe2c6 !important; } 
@@ -157,28 +157,84 @@
     let tmpColor = "default";
     let tmpEmoji = "none";
     let calendarData = JSON.parse(localStorage.getItem('simple_cal_data')) || {};
-    let holidaysData = {}; // 祝日データを格納するオブジェクト
 
     const monthYearEl = document.getElementById('monthYear');
     const daysContainer = document.getElementById('daysContainer');
     const modal = document.getElementById('modal');
 
-    // 【追加】日本の祝日データをネットから自動取得する関数
-    async function fetchHolidays() {
-        try {
-            const response = await fetch('https://api.suyasuya.dev/holidays');
-            if (response.ok) {
-                const data = await response.json();
-                // 取得したデータを使いやすいように { "2026-01-01": "元日" } の形に変換
-                data.forEach(h => {
-                    holidaysData[h.date] = h.name;
-                });
-                // 祝日データが読み込めたらカレンダーを再描画
-                renderCalendar(currentDate);
-            }
-        } catch (e) {
-            console.error("祝日データの取得に失敗しました", e);
+    // 【永久自動】指定された年・月・日の祝日を判定する計算プログラム
+    function isJapanHoliday(year, month, day, dayOfWeek) {
+        // 固定の祝日
+        if (month === 0 && day === 1) return true;  // 元日
+        if (month === 1 && day === 11) return true; // 建国記念の日
+        if (month === 1 && day === 23) return true; // 天皇誕生日
+        if (month === 3 && day === 29) return true; // 昭和の日
+        if (month === 4 && day === 3) return true;  // 憲法記念日
+        if (month === 4 && day === 4) return true;  // みどりの日
+        if (month === 4 && day === 5) return true;  // こどもの日
+        if (month === 7 && day === 11) return true; // 山の日
+        if (month === 10 && day === 3) return true; // 文化の日
+        if (month === 10 && day === 23) return true;// 勤労感謝の日
+
+        // ハッピーマンデー（第○月曜日）の判定
+        if (dayOfWeek === 1) { 
+            if (month === 0 && day >= 8 && day <= 14) return true;  // 成人の日 (第2月曜)
+            if (month === 6 && day >= 15 && day <= 21) return true; // 海の日 (第3月曜)
+            if (month === 8 && day >= 15 && day <= 21) return true; // 敬老の日 (第3月曜)
+            if (month === 9 && day >= 8 && day <= 14) return true;  // スポーツの日 (第2月曜)
         }
+
+        // 春分の日・秋分の日の自動計算式 (2099年まで正確に計算可能)
+        if (month === 2) {
+            const springEquinox = Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+            if (day === springEquinox) return true;
+        }
+        if (month === 8) {
+            const autumnEquinox = Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+            if (day === autumnEquinox) return true;
+        }
+
+        return false;
+    }
+
+    // 表示している月全体の祝日・振替休日を完璧に洗い出す関数
+    function getMonthHolidays(year, month, lastDay) {
+        let holidaySet = new Set();
+        
+        // 1回目のパス：通常の祝日を判定
+        for (let d = 1; d <= lastDay; d++) {
+            const dt = new Date(year, month, d);
+            if (isJapanHoliday(year, month, d, dt.getDay())) {
+                holidaySet.add(d);
+            }
+        }
+
+        // 2回目のパス：振替休日・国民の休日の判定
+        for (let d = 1; d <= lastDay; d++) {
+            const dt = new Date(year, month, d);
+            const w = dt.getDay();
+
+            // 振替休日のルール：祝日が日曜日の場合、その後の最初の平日が休み
+            if (holidaySet.has(d) && w === 0) {
+                let nextDay = d + 1;
+                while (nextDay <= lastDay) {
+                    if (holidaySet.has(nextDay)) {
+                        nextDay++;
+                    } else {
+                        holidaySet.add(nextDay);
+                        break;
+                    }
+                }
+            }
+
+            // 国民の休日のルール：前日と翌日の両方が祝日である平日は休み（オセロ現象）
+            if (d > 1 && d < lastDay && !holidaySet.has(d)) {
+                if (holidaySet.has(d - 1) && holidaySet.has(d + 1)) {
+                    holidaySet.add(d);
+                }
+            }
+        }
+        return holidaySet;
     }
 
     function renderCalendar(date) {
@@ -189,9 +245,10 @@
         const firstDay = new Date(year, month, 1).getDay();
         const lastDay = new Date(year, month + 1, 0).getDate();
 
-        daysContainer.innerHTML = '';
+        // 当月のすべての祝日（振替休日含む）の日付を計算
+        const currentMonthHolidays = getMonthHolidays(year, month, lastDay);
 
-        // 今月の各色のカウント用変数をリセット
+        daysContainer.innerHTML = '';
         let counts = { blue: 0, orange: 0, yellow: 0, pink: 0, gray: 0 };
 
         // 空白埋め
@@ -207,13 +264,13 @@
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             dayDiv.dataset.date = dateStr;
 
-            // 土日の文字色クラスを判定して付与
+            // 土日の文字色判定
             const currentWeekDay = new Date(year, month, day).getDay();
             if (currentWeekDay === 0) dayDiv.classList.add('sun-color');
             if (currentWeekDay === 6) dayDiv.classList.add('sat-color');
 
-            // 【追加】もし祝日リストにこの日付があれば、祝日用の赤色クラスを付与
-            if (holidaysData[dateStr]) {
+            // 【判定】計算された祝日リストに含まれていれば、赤色クラスを付与
+            if (currentMonthHolidays.has(day)) {
                 dayDiv.classList.add('holiday-color');
             }
 
@@ -232,7 +289,6 @@
                 const savedColor = calendarData[dateStr].color;
                 if (savedColor && savedColor !== 'default') {
                     dayDiv.classList.add(savedColor);
-                    // 表示されている月の日付の場合のみカウントに加算
                     if (counts[savedColor] !== undefined) {
                         counts[savedColor]++;
                     }
@@ -333,8 +389,7 @@
         renderCalendar(currentDate);
     });
 
-    // 初期起動時に祝日を取得し、カレンダーを描画
-    fetchHolidays();
+    // 初期起動
     renderCalendar(currentDate);
 </script>
 </body>
