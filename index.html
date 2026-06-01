@@ -311,8 +311,8 @@
                 if (emoji && emoji !== 'none') {
                     iconSpan.textContent = emoji;
                     
-                    // 🌸が含まれていれば5点、🌙が含まれていれば10点（🌸🌙なら両方加点されて15点）
-                    if (emoji.includes('🌸')) healthScore += 5;
+                    // 🌸が含まれていれば1.5点、🌙が含まれていれば10点（🌸🌙なら両方加点されて11.5点）
+                    if (emoji.includes('🌸')) healthScore += 1.5;
                     if (emoji.includes('🌙')) healthScore += 10;
                 }
             }
